@@ -1,0 +1,59 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-golang:
+    name: Test on Go ${{ matrix.go }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 3
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        go:
+          - 1.16
+          - 1.17
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v2
+
+      - name: Set up Go ${{ matrix.go }}
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Lint code
+        run: |
+          test -z $(gofmt -l .)
+
+      - name: Validate code
+        run: |
+          go mod verify
+          go vet ./...
+
+      - name: Run tests
+        run: |
+          go test \
+            -race \
+            -cover \
+            -coverprofile=coverage.out \
+            -covermode=atomic \
+            ./...
+          go tool cover \
+            -func=coverage.out
